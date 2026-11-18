@@ -1,0 +1,20 @@
+# Serving endpoint serverless con scale-to-zero.
+# Config base: served entity 'champion' al 100%. El job (Deploy-Model-Job) gestiona el
+# canary (1%/10%) y la promotion/rollback reescribiendo el config via SDK en runtime.
+# Re-desplegar el bundle restaura el config base (champion 100%) = estado de rollback.
+
+resources:
+  model_serving_endpoints:
+    whistle_asr_endpoint:
+      name: ${var.endpoint_name}
+      config:
+        served_entities:
+          - name: champion
+            entity_name: ${var.model_name}
+            entity_version: ${var.champion_version}
+            workload_size: Small
+            scale_to_zero_enabled: true
+        traffic_config:
+          routes:
+            - served_model_name: champion
+              traffic_percentage: "100"

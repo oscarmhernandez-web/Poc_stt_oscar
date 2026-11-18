@@ -1,0 +1,13 @@
+# Modelos y artefactos binarios (se descargan con `cactus download whistle` / Hugging Face)
+*.cact
+*.bin
+*.safetensors
+# Audios de prueba
+*.wav
+*.opus
+*.mp3
+# Bundle / Python
+.databricks/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

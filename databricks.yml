@@ -1,0 +1,49 @@
+# Declarative Automation Bundle (DAB) - Deploy-Model-Job
+# POC de despliegue canary con rollback para workspace.audio_poc.whistle_asr
+# (MLflow 3 / Unity Catalog). Cambios minimos sobre el proyecto existente:
+#   - no se tocan los notebooks de notebooks/ (utils/00_config, 01, 02, 03)
+#   - se anaden deployment/ (notebooks idempotentes del job) y resources/ (job + endpoint)
+
+bundle:
+  name: audio_poc_deploy
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    default: workspace
+  schema:
+    default: audio_poc
+  model_name:
+    description: Nombre completo del modelo registrado en Unity Catalog
+    default: workspace.audio_poc.whistle_asr
+  champion_version:
+    description: Version con alias 'champion' para crear/actualizar el endpoint base
+    default: "1"
+  endpoint_name:
+    description: Nombre del serving endpoint (serverless, scale-to-zero)
+    default: whistle-asr-endpoint
+  wer_threshold:
+    description: WER maximo (menor es mejor) para aprobar el gate de Evaluate_Model
+    default: "0.30"
+  latency_threshold_ms:
+    description: Latencia p95 maxima (ms) para Check_metrics
+    default: "5000"
+
+targets:
+  # Target para las PRUEBAS: mode=production => sin prefijos automaticos de nombre,
+  # asi el endpoint "whistle-asr-endpoint" y los params del job coinciden.
+  # Despliega y ejecuta con:  databricks bundle deploy --target test
+  test:
+    default: true
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/oscarm.hernandez@sdggroup.com/.bundle/${bundle.name}/${bundle.target}
+  # Dev aislado (con prefijos); los notebooks del job no usan este target por defecto.
+  dev:
+    mode: development
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/oscarm.hernandez@sdggroup.com/.bundle/${bundle.name}/${bundle.target}

@@ -1,0 +1,126 @@
+# Job: Deploy-Model-Job (despliegue canary con rollback)
+# Parametros del job: model_name, model_version (la version challenger a desplegar).
+# DAG:
+#   Evaluate_Model -> gate (If/else sobre 'passed')
+#     False -> Archive_model (tag status=archived)
+#     True  -> Deploy 1% -> Deploy 10% -> Check_metrics -> health_gate (If/else sobre 'healthy')
+#       True  -> Promote_Champion (100% + mover alias champion)
+#       False -> Rollback (100% al champion actual)
+# Compute: serverless (se omite la definicion de cluster para notebook tasks).
+
+resources:
+  jobs:
+    deploy_model_job:
+      name: Deploy-Model-Job
+      parameters:
+        - name: model_name
+          default: workspace.audio_poc.whistle_asr
+        - name: model_version
+          default: "1"
+        # Parametros de prueba para los 3 escenarios:
+        #   - wer_threshold muy bajo (p.ej. "0.0") fuerza el gate a FALSE -> archive
+        #   - force_fail="true" fuerza Check_metrics a FALSE -> rollback
+        - name: wer_threshold
+          default: "0.30"
+        - name: force_fail
+          default: "false"
+      tasks:
+        # 1. Evaluacion del challenger (WER reutilizando notebooks/utils/00_config)
+        - task_key: evaluate_model
+          notebook_task:
+            notebook_path: ../deployment/evaluate_model.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+              wer_threshold: "{{job.parameters.wer_threshold}}"
+
+        # Gate If/else: passed == true ?
+        - task_key: gate_passed
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.evaluate_model.values.passed}}"
+            right: "true"
+          depends_on:
+            - task_key: evaluate_model
+
+        # FALSE -> archivar
+        - task_key: archive_model
+          notebook_task:
+            notebook_path: ../deployment/archive_model.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+          depends_on:
+            - task_key: gate_passed
+              outcome: "false"
+
+        # TRUE -> canary 1%
+        - task_key: deploy_1pct
+          notebook_task:
+            notebook_path: ../deployment/deploy_canary.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+              endpoint_name: whistle-asr-endpoint
+              traffic_percent: "1"
+          depends_on:
+            - task_key: gate_passed
+              outcome: "true"
+
+        # 10%
+        - task_key: deploy_10pct
+          notebook_task:
+            notebook_path: ../deployment/deploy_canary.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+              endpoint_name: whistle-asr-endpoint
+              traffic_percent: "10"
+          depends_on:
+            - task_key: deploy_1pct
+
+        # Check metrics (errores + latencia del endpoint; force_fail para forzar rollback)
+        - task_key: check_metrics
+          notebook_task:
+            notebook_path: ../deployment/check_metrics.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+              endpoint_name: whistle-asr-endpoint
+              force_fail: "{{job.parameters.force_fail}}"
+              latency_threshold_ms: "5000"
+              n_samples: "5"
+          depends_on:
+            - task_key: deploy_10pct
+
+        # Health gate If/else: healthy == true ?
+        - task_key: health_gate
+          condition_task:
+            op: EQUAL_TO
+            left: "{{tasks.check_metrics.values.healthy}}"
+            right: "true"
+          depends_on:
+            - task_key: check_metrics
+
+        # TRUE -> 100% + mover alias champion
+        - task_key: promote_champion
+          notebook_task:
+            notebook_path: ../deployment/promote_champion.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              model_version: "{{job.parameters.model_version}}"
+              endpoint_name: whistle-asr-endpoint
+          depends_on:
+            - task_key: health_gate
+              outcome: "true"
+
+        # FALSE -> rollback al champion
+        - task_key: rollback
+          notebook_task:
+            notebook_path: ../deployment/rollback.ipynb
+            base_parameters:
+              model_name: "{{job.parameters.model_name}}"
+              endpoint_name: whistle-asr-endpoint
+          depends_on:
+            - task_key: health_gate
+              outcome: "false"
