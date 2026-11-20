@@ -24,8 +24,10 @@ REF_DIR   = f"{BASE}/ref_txt"     # <nombre>.txt con la transcripción correcta 
 AZURE_DIR = f"{BASE}/azure_txt"   # <nombre>.txt con la salida de Azure STT (para comparar)
 
 # --- Modelo ---
-BACKEND  = "whistle"                 # "whistle" (Cactus, CPU) | "whisper" (transformers, baseline)
-MODEL_ID = "Cactus-Compute/whistle"  # para whisper, p. ej. "openai/whisper-small"
+#BACKEND  = "whistle"                 # "whistle" (Cactus, CPU) | "whisper" (transformers, baseline)
+#MODEL_ID = "Cactus-Compute/whistle"  # para whisper, p. ej. "openai/whisper-small"
+BACKEND = "whisper"
+MODEL_ID = "openai/whisper-small"
 LANGUAGE = "es"
 UC_MODEL = f"{CATALOG}.{SCHEMA}.whistle_asr"
 
