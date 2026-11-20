@@ -39,11 +39,15 @@ targets:
     default: true
     mode: production
     workspace:
+      host: https://dbc-138c4917-a45e.cloud.databricks.com
       root_path: /Workspace/Users/oscarm.hernandez@sdggroup.com/.bundle/${bundle.name}/${bundle.target}
   # Dev aislado (con prefijos); los notebooks del job no usan este target por defecto.
   dev:
     mode: development
+    workspace:
+      host: https://dbc-138c4917-a45e.cloud.databricks.com
   prod:
     mode: production
     workspace:
+      host: https://dbc-138c4917-a45e.cloud.databricks.com
       root_path: /Workspace/Users/oscarm.hernandez@sdggroup.com/.bundle/${bundle.name}/${bundle.target}
